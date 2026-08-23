@@ -1,0 +1,198 @@
+// MARK: NanoSDK Runtime bootstrap
+// Wires the ported interpreter (nanosdk_runtime.js) up to a real window:
+// builds the chrome MicroOS itself would normally draw (createAppBar,
+// close_apps, error/game.splash), and translates mouse input into the
+// menu selection model NanoSDK apps expect.
+
+const theme = [7, 9, 2]; // [taskbar primary, taskbar accent, app-bar accent] -- matches MicroOS's default theme
+let _booted = false;
+
+// MARK: App bar
+// nanosdk_runtime.js still draws MicroOS's own in-app bar (accent strip +
+// Close_App + App_Title) into the top 9 units of the 160x120 framebuffer,
+// same as on real MicroOS -- but engine.js crops that strip out of what's
+// actually shown on screen, since this runtime gives each app a real OS
+// window (title + icon + close) instead. No asset needed for Close_App's
+// icon since it's never visible.
+function createAppBar(fill, accent) {
+    fill = fill === undefined ? 1 : fill;
+    accent = accent === undefined ? 2 : accent;
+    let fill2 = fill;
+    if (fill === 0) {
+        fill2 = darkMode ? 15 : 1;
+    }
+    if (accent === 2) {
+        accent = theme[2];
+    }
+    let bg = image.create(160, 120);
+    bg.fill(fill2);
+    bg.fillRect(0, 0, 160, 9, accent);
+    scene.setBackgroundImage(bg);
+}
+
+// MARK: Close / exit handling
+let _splashActive = false;
+let _closeAfterSplash = false;
+
+function close_apps() {
+    List_Scroll = 0;
+    App_Open = 'null';
+    SubMenu = 'null';
+    NanoSDK_App_Running = false;
+    nanoSDK_hover_highlight = false;
+    if (!isDestroyed(NanoSDK_Taskbar_Icon)) NanoSDK_Taskbar_Icon.destroy();
+    sprites.destroyAllSpritesOfKind(SpriteKind.Text);
+    sprites.destroyAllSpritesOfKind(SpriteKind.App_UI);
+    sprites.destroyAllSpritesOfKind(SpriteKind.SimpleMenu);
+    scene.setBackgroundImage(null);
+
+    if (_booted) {
+        // This runtime hosts exactly one app; once it closes itself there's
+        // nothing left to show, so the window goes with it. Deferred so a
+        // game.splash() call immediately following close_apps() (as in the
+        // "106" command) gets a chance to open first and keep the window
+        // open until the player dismisses it.
+        setTimeout(() => {
+            if (_splashActive) {
+                _closeAfterSplash = true;
+            } else {
+                window.nsa.close();
+            }
+        }, 0);
+    }
+}
+let List_Scroll = 0;
+
+// MARK: Errors
+function error(code) {
+    close_apps();
+    game.splash('Error ' + code);
+}
+function softerror(code) {
+    game.splash('Error ' + code);
+}
+
+// MARK: game.splash / game.reset
+// PRN shows a real native OS dialog (via main.js's dialog.showMessageBox),
+// not an HTML overlay drawn inside the page. The renderer just awaits it:
+// _splashActive gates the tick loop below so nanosdk_runtime.js's line
+// execution actually pauses while the dialog is up, same as the blocking
+// game.splash() it was ported from.
+const game = {
+    async splash(msg) {
+        _splashActive = true;
+        await window.nsa.splash(msg);
+        _splashActive = false;
+        if (_closeAfterSplash) { window.nsa.close(); }
+    },
+    reset() {
+        window.nsa.close();
+    }
+};
+
+// MARK: Input -- mouse hover/click over the running app's ListGUI
+// MicroOS's own UI (see the Settings screenshot) keeps two things separate:
+// moving the cursor over an option highlights it, but only actually
+// *picking* it fires an action -- see MouseClick/listSelection in the
+// original input.ts, which only ever act on a real click, never on mere
+// hover. nanosdk_runtime.js's WHN sel checks read ListMenuGUI.selectedIndex
+// directly with no such distinction, so app.js keeps selectedIndex
+// click-only (an edge-triggered pulse, so a WHN sel block fires once per
+// click, not once per frame) and drives the purely-visual hoverIndex
+// (see simpleMenu.js) from mouse position instead.
+let _selectClearTimer = null;
+let _lastMouseLogicalPt = null;
+
+function canvasToLogical(evt) {
+    // The visible canvas only shows the framebuffer's bottom VISIBLE_H
+    // units (the top 9 -- MicroOS's own app bar -- are cropped out), so a
+    // click at visible-canvas row 0 is framebuffer row VISIBLE_Y_OFFSET.
+    const rect = screenCanvas.getBoundingClientRect();
+    const scaleX = rect.width / LOGICAL_W;
+    const scaleY = rect.height / VISIBLE_H;
+    return {
+        x: (evt.clientX - rect.left) / scaleX,
+        y: (evt.clientY - rect.top) / scaleY + VISIBLE_Y_OFFSET
+    };
+}
+
+function menuRowAt(pt) {
+    if (!ListMenuGUI || isDestroyed(ListMenuGUI)) return -1;
+    const left = ListMenuGUI.x - ListMenuGUI.width / 2;
+    const top = ListMenuGUI.y - ListMenuGUI.height / 2;
+    return ListMenuGUI.rowAt(pt.x - left, pt.y - top);
+}
+
+// Re-applied every frame (not just on mousemove) since a WHN sel action can
+// rebuild ListMenuGUI entirely (Reload_ListGUI), which would otherwise
+// leave the new instance's hoverIndex at -1 until the mouse next moves.
+function syncHover() {
+    if (!ListMenuGUI) return;
+    const row = (nanoSDK_hover_highlight && _lastMouseLogicalPt) ? menuRowAt(_lastMouseLogicalPt) : -1;
+    ListMenuGUI.hoverIndex = row;
+}
+
+screenCanvas.addEventListener('mousemove', (evt) => {
+    _lastMouseLogicalPt = canvasToLogical(evt);
+    const row = menuRowAt(_lastMouseLogicalPt);
+    screenCanvas.style.cursor = row >= 0 ? 'pointer' : 'default';
+    syncHover();
+});
+
+screenCanvas.addEventListener('click', (evt) => {
+    const pt = canvasToLogical(evt);
+    const row = menuRowAt(pt);
+    if (row < 0 || !ListMenuGUI) return;
+    ListMenuGUI.selectedIndex = row;
+    clearTimeout(_selectClearTimer);
+    _selectClearTimer = setTimeout(() => {
+        if (ListMenuGUI && !isDestroyed(ListMenuGUI) && ListMenuGUI.selectedIndex === row) {
+            ListMenuGUI.selectedIndex = -1;
+        }
+    }, 120);
+});
+
+// Edge-trigger WHN sel checks so a click's momentary selection pulse fires
+// its body exactly once, instead of once per rendered frame it stays set.
+const _rawCheckWhen = nanoSDK_check_when;
+let _selEdgeSeen = {};
+nanoSDK_check_when = function (idx) {
+    const cond = when_cond_data[idx];
+    if (cond && cond[0] === 'sel') {
+        const raw = _rawCheckWhen(idx);
+        const prev = !!_selEdgeSeen[idx];
+        _selEdgeSeen[idx] = raw;
+        return raw && !prev;
+    }
+    return _rawCheckWhen(idx);
+};
+
+// nanosdk_runtime.js's own nanoSDK_apply_theme only ever picks between
+// black/white (see its dark ? ... : ... pairs), but MicroOS's actual UI
+// (see the Settings screenshot) highlights the selected row with a solid
+// purple fill and white text -- the same selectedBackground/Foreground
+// app_backend.ts's own reloadListGUI uses for its light-mode lists.
+// Applying that here, right after nanoSDK_apply_theme runs, matches the
+// real OS's look without having to touch nanosdk_runtime.js's ported logic.
+const _rawApplyTheme = nanoSDK_apply_theme;
+nanoSDK_apply_theme = function (mode) {
+    _rawApplyTheme(mode);
+    if (ListMenuGUI) {
+        ListMenuGUI.selectedBackground = 3; // #7A00B3
+        ListMenuGUI.selectedForeground = 1; // white
+    }
+};
+
+// MARK: Boot
+window.nsa.onLoad((file) => {
+    Open_NanoSDK_App(file.content);
+    _booted = true;
+
+    startEngineLoop(() => {
+        syncHover();
+        if (_splashActive) return;
+        if (NanoSDK_App_Running || when_cond_data.length > 0) {
+            executeNanoSDKLine();
+        }
+    });
+});
