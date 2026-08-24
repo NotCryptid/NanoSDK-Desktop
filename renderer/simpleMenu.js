@@ -71,6 +71,11 @@ class SimpleMenu extends ExtendableSprite {
         this.rowOffset = Math.max(0, Math.min(this.maxRowOffset(), this.rowOffset + deltaRows));
     }
 
+    // Clamps and snaps to a specific row offset; used by app.js's scrollbar drag.
+    setRowOffset(target) {
+        this.rowOffset = Math.max(0, Math.min(this.maxRowOffset(), Math.round(target)));
+    }
+
     setColors(defaultForeground, defaultBackground, selectedForeground, selectedBackground) {
         this.defaultForeground = defaultForeground;
         this.defaultBackground = defaultBackground;
@@ -130,7 +135,61 @@ class SimpleMenu extends ExtendableSprite {
             }
         }
 
+        // _MENU_ROW_HEIGHT (12) rarely divides this.height evenly, leaving a
+        // sub-row sliver (< 12 units) at the bottom that no row claims.
+        // When the list is actually full there -- as many items as the
+        // area can hold, or more -- that sliver still reads as "inside the
+        // list", so paint it the same as a row's background instead of
+        // leaving it to show whatever's behind. A short list intentionally
+        // leaves the rest of its area unpainted (see MicroOS's own
+        // createAppBar/reloadListGUI split), so this only applies once the
+        // list is actually full.
+        const usedH = visibleRows * _MENU_ROW_HEIGHT;
+        const remainder = this.height - usedH;
+        if (remainder > 0 && this.items.length >= this.visibleRowCount() && this.defaultBackground) {
+            screen.fillRect(drawLeft, drawTop + usedH, this.width, remainder, this.defaultBackground);
+        }
+
         this.drawScrollbar(drawLeft, drawTop);
+    }
+
+    // Keeps the thumb's travel range from ever touching the very top/bottom
+    // edge of the list -- mirrors real MicroOS's scrollbar sitting between
+    // its up/down arrow buttons rather than spanning the full sprite
+    // height (see updateScrollBar's trackTop/trackBottom in app_backend.ts).
+    // This desktop port has no arrow sprites, so a flat margin stands in.
+    static SCROLLBAR_MARGIN = 3;
+
+    // Thumb geometry in absolute framebuffer coordinates, given this
+    // sprite's already-floored draw position (see engine.js's renderFrame).
+    // Shared by drawScrollbar and app.js's drag hit-testing/tracking so
+    // both agree exactly on where the thumb is.
+    scrollbarThumbRect(drawLeft, drawTop) {
+        if (!this.scrollbarEnabled) return null;
+        const totalRows = this.items.length;
+        const visibleRows = this.visibleRowCount();
+        if (totalRows <= visibleRows) return null;
+
+        const thumbW = 6;
+        const gapW = LOGICAL_W - (drawLeft + this.width);
+        const x = drawLeft + this.width + Math.max(0, (gapW - thumbW) / 2);
+
+        const margin = SimpleMenu.SCROLLBAR_MARGIN;
+        const trackH = Math.max(0, this.height - margin * 2);
+        const maxOffset = this.maxRowOffset();
+        const h = Math.max(thumbW, (visibleRows / totalRows) * trackH);
+        const y = drawTop + margin + (maxOffset > 0 ? (this.rowOffset / maxOffset) * (trackH - h) : 0);
+        return { x, y, w: thumbW, h };
+    }
+
+    // How many logical units of thumb travel correspond to the full scroll
+    // range -- used to convert a drag's pixel delta into a row delta.
+    scrollbarTravelDistance() {
+        const totalRows = this.items.length;
+        const visibleRows = this.visibleRowCount();
+        const trackH = Math.max(0, this.height - SimpleMenu.SCROLLBAR_MARGIN * 2);
+        const thumbH = Math.max(6, (visibleRows / totalRows) * trackH);
+        return trackH - thumbH;
     }
 
     // Drawn in the reserved gap to the sprite's right (CLG's "s" size is 9
@@ -139,18 +198,9 @@ class SimpleMenu extends ExtendableSprite {
     // rounded-pill thumb in taskbar-accent pink (palette 9, #EF9EFF), no
     // visible track behind it.
     drawScrollbar(drawLeft, drawTop) {
-        if (!this.scrollbarEnabled) return;
-        const totalRows = this.items.length;
-        const visibleRows = this.visibleRowCount();
-        if (totalRows <= visibleRows) return;
-
-        const thumbW = 6;
-        const thumbX = drawLeft + this.width + 2;
-
-        const maxOffset = this.maxRowOffset();
-        const thumbH = Math.max(thumbW, (visibleRows / totalRows) * this.height);
-        const thumbY = drawTop + (maxOffset > 0 ? (this.rowOffset / maxOffset) * (this.height - thumbH) : 0);
-        screen.fillRoundedRect(thumbX, thumbY, thumbW, thumbH, thumbW / 2, 9);
+        const rect = this.scrollbarThumbRect(drawLeft, drawTop);
+        if (!rect) return;
+        screen.fillRoundedRect(rect.x, rect.y, rect.w, rect.h, rect.w / 2, 9);
     }
 
     scrollOffset(overflow) {

@@ -116,11 +116,29 @@ function canvasToLogical(evt) {
     };
 }
 
+// Matches engine.js's renderFrame draw-position math exactly (Math.floor,
+// not a plain center calc) so hit-testing agrees with what's on screen.
+function spriteDrawOrigin(sprite) {
+    return {
+        left: Math.floor(sprite.x - sprite.width / 2),
+        top: Math.floor(sprite.y - sprite.height / 2)
+    };
+}
+
 function menuRowAt(pt) {
     if (!ListMenuGUI || isDestroyed(ListMenuGUI)) return -1;
-    const left = ListMenuGUI.x - ListMenuGUI.width / 2;
-    const top = ListMenuGUI.y - ListMenuGUI.height / 2;
+    const { left, top } = spriteDrawOrigin(ListMenuGUI);
     return ListMenuGUI.rowAt(pt.x - left, pt.y - top);
+}
+
+function scrollbarThumbRectAt() {
+    if (!ListMenuGUI || isDestroyed(ListMenuGUI) || !ListMenuGUI.scrollbarEnabled) return null;
+    const { left, top } = spriteDrawOrigin(ListMenuGUI);
+    return ListMenuGUI.scrollbarThumbRect(left, top);
+}
+
+function pointInRect(pt, rect) {
+    return rect && pt.x >= rect.x && pt.x < rect.x + rect.w && pt.y >= rect.y && pt.y < rect.y + rect.h;
 }
 
 // Re-applied every frame (not just on mousemove) since a WHN sel action can
@@ -134,9 +152,50 @@ function syncHover() {
 
 screenCanvas.addEventListener('mousemove', (evt) => {
     _lastMouseLogicalPt = canvasToLogical(evt);
+    if (_scrollDragging) return; // cursor/hover stay put mid-drag; the window listener below drives the scroll
     const row = menuRowAt(_lastMouseLogicalPt);
-    screenCanvas.style.cursor = row >= 0 ? 'pointer' : 'default';
+    const overThumb = pointInRect(_lastMouseLogicalPt, scrollbarThumbRectAt());
+    screenCanvas.style.cursor = row >= 0 || overThumb ? 'pointer' : 'default';
     syncHover();
+});
+
+// LSB's scrollbar: drag the thumb to scroll, mirroring MicroOS's own
+// beginScrollBarDrag/updateScrollBarDrag/endScrollBarDrag (see input.ts) --
+// the drag delta is scaled by maxRowOffset/travelDistance so a full drag
+// from one end of the thumb's travel to the other covers the whole list.
+let _scrollDragging = false;
+let _scrollDragStartY = 0;
+let _scrollDragStartOffset = 0;
+let _justDraggedScrollbar = false;
+
+screenCanvas.addEventListener('mousedown', (evt) => {
+    const pt = canvasToLogical(evt);
+    const rect = scrollbarThumbRectAt();
+    if (!pointInRect(pt, rect)) return;
+    evt.preventDefault();
+    _scrollDragging = true;
+    _scrollDragStartY = pt.y;
+    _scrollDragStartOffset = ListMenuGUI.rowOffset;
+});
+
+window.addEventListener('mousemove', (evt) => {
+    if (!_scrollDragging) return;
+    if (!ListMenuGUI || isDestroyed(ListMenuGUI)) { _scrollDragging = false; return; }
+    const pt = canvasToLogical(evt);
+    const travel = ListMenuGUI.scrollbarTravelDistance();
+    const maxOffset = ListMenuGUI.maxRowOffset();
+    if (travel > 0 && maxOffset > 0) {
+        const deltaRows = (pt.y - _scrollDragStartY) * maxOffset / travel;
+        ListMenuGUI.setRowOffset(_scrollDragStartOffset + deltaRows);
+        List_Scroll = ListMenuGUI.rowOffset;
+    }
+    syncHover();
+});
+
+window.addEventListener('mouseup', () => {
+    if (!_scrollDragging) return;
+    _scrollDragging = false;
+    _justDraggedScrollbar = true;
 });
 
 // LSB's scrollbar: mouse wheel over the list scrolls it by row, clamped
@@ -152,6 +211,7 @@ screenCanvas.addEventListener('wheel', (evt) => {
 }, { passive: false });
 
 screenCanvas.addEventListener('click', (evt) => {
+    if (_justDraggedScrollbar) { _justDraggedScrollbar = false; return; }
     const pt = canvasToLogical(evt);
     const row = menuRowAt(pt);
     if (row < 0 || !ListMenuGUI) return;

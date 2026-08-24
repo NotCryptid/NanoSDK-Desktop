@@ -325,13 +325,15 @@ function renderFrame() {
         // shell here for it to live in -- the app's own icon is shown by
         // the real OS window/Dock instead (see main.js) -- so it's skipped.
         if (s.kind === SpriteKind.Desktop_UI) continue;
-        // Rounded to the nearest logical pixel: the original hardware only
-        // ever had integer framebuffer coordinates, so a sprite centered on
-        // a half-unit position (e.g. y=58 with an odd height) never left a
-        // visible sub-pixel gap there the way this engine's real-number
-        // vector rendering otherwise would.
-        const left = Math.round(s.x - s.width / 2);
-        const top = Math.round(s.y - s.height / 2);
+        // Floored (not rounded) to the nearest logical pixel: the original
+        // hardware only ever had integer framebuffer coordinates, so a
+        // sprite centered on a half-unit position (e.g. y=58 with an odd
+        // height, giving top=9.5) never left a visible sub-pixel gap there
+        // the way this engine's real-number vector rendering otherwise
+        // would. Math.round would push 9.5 up to 10, opening a 1-unit gap
+        // against the visible area's top edge at y=9 instead of closing it.
+        const left = Math.floor(s.x - s.width / 2);
+        const top = Math.floor(s.y - s.height / 2);
         s.draw(left, top);
     }
     presentFrame();

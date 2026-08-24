@@ -106,11 +106,19 @@ function openNsaWindow(filePath) {
         app.dock.setIcon(icon);
     }
 
+    // 160x97: MicroOS's own fullscreen ListGUI preset (see e.g. Web Chat's
+    // reloadListGUI(80, 58, 160, 97, ...) in app_backend.ts) -- also
+    // renderer/engine.js's LOGICAL_W x VISIBLE_H, the exact content area
+    // this runtime actually draws into. The window is sized to that ratio
+    // and locked to it so the canvas never gets stretched off-ratio by an
+    // arbitrarily-shaped window (see style.css's matching aspect-ratio).
+    const CONTENT_SCALE = 6;
     const win = new BrowserWindow({
-        width: 1000,
-        height: 780,
-        minWidth: 480,
-        minHeight: 380,
+        width: 160 * CONTENT_SCALE,
+        height: 97 * CONTENT_SCALE,
+        minWidth: 160 * 3,
+        minHeight: 97 * 3,
+        useContentSize: true,
         title: appName,
         icon,
         backgroundColor: '#FFFFFF',
@@ -121,6 +129,7 @@ function openNsaWindow(filePath) {
             sandbox: true
         }
     });
+    win.setAspectRatio(160 / 97);
 
     win.setMenuBarVisibility(false);
     // index.html has a static <title>; don't let it clobber the app name
