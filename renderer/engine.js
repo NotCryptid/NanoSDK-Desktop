@@ -126,7 +126,13 @@ const screenImage = new OSImage(LOGICAL_W, LOGICAL_H);
 // only the content below it, letting the OS's own title bar take over
 // identity/close (see main.js's setTitle/setIcon).
 const VISIBLE_Y_OFFSET = 9;
-const VISIBLE_H = LOGICAL_H - VISIBLE_Y_OFFSET;
+// The bottom 14 units of the framebuffer are MicroOS's own system taskbar
+// band (its default ListGUI height of 97 leaves exactly this much room:
+// 120 - 9 - 97 = 14). This runtime has no taskbar to draw there either, so
+// that band is cropped off the bottom of the window the same way the app
+// bar strip is cropped off the top, instead of showing as dead space.
+const TASKBAR_H = 14;
+const VISIBLE_H = LOGICAL_H - VISIBLE_Y_OFFSET - TASKBAR_H;
 
 const screenCanvas = document.getElementById('screen');
 const presentCtx = screenCanvas.getContext('2d');
@@ -152,6 +158,7 @@ const image = {
 
 const screen = {
     fillRect: (x, y, w, h, color) => screenImage.fillRect(x, y, w, h, color),
+    fillRoundedRect: (x, y, w, h, r, color) => screenImage.fillRoundedRect(x, y, w, h, r, color),
     print: (text, x, y, color, font) => screenImage.print(text, x, y, color, font),
     drawTransparentImage(img, x, y) {
         if (!img) return;
@@ -318,8 +325,13 @@ function renderFrame() {
         // shell here for it to live in -- the app's own icon is shown by
         // the real OS window/Dock instead (see main.js) -- so it's skipped.
         if (s.kind === SpriteKind.Desktop_UI) continue;
-        const left = s.x - s.width / 2;
-        const top = s.y - s.height / 2;
+        // Rounded to the nearest logical pixel: the original hardware only
+        // ever had integer framebuffer coordinates, so a sprite centered on
+        // a half-unit position (e.g. y=58 with an odd height) never left a
+        // visible sub-pixel gap there the way this engine's real-number
+        // vector rendering otherwise would.
+        const left = Math.round(s.x - s.width / 2);
+        const top = Math.round(s.y - s.height / 2);
         s.draw(left, top);
     }
     presentFrame();

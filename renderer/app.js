@@ -139,6 +139,18 @@ screenCanvas.addEventListener('mousemove', (evt) => {
     syncHover();
 });
 
+// LSB's scrollbar: mouse wheel over the list scrolls it by row, clamped
+// inside SimpleMenu.scrollBy. List_Scroll just tracks the running total for
+// parity with nanosdk_runtime.js's reset-on-close (see close_apps).
+screenCanvas.addEventListener('wheel', (evt) => {
+    if (!ListMenuGUI || isDestroyed(ListMenuGUI) || !ListMenuGUI.scrollbarEnabled) return;
+    evt.preventDefault();
+    const rows = Math.sign(evt.deltaY) * Math.max(1, Math.round(Math.abs(evt.deltaY) / _MENU_ROW_HEIGHT));
+    ListMenuGUI.scrollBy(rows);
+    List_Scroll = ListMenuGUI.rowOffset;
+    syncHover();
+}, { passive: false });
+
 screenCanvas.addEventListener('click', (evt) => {
     const pt = canvasToLogical(evt);
     const row = menuRowAt(pt);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog, nativeImage, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -140,6 +140,19 @@ function openNsaWindow(filePath) {
 
     win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
+
+// LGT's "m" (match OS theme) mode reads this. A sandboxed renderer's own
+// window.matchMedia('(prefers-color-scheme: dark)') doesn't reliably track
+// macOS's actual appearance here, so the renderer asks the main process's
+// nativeTheme instead, which does.
+ipcMain.on('nsa:darkMode', (event) => {
+    event.returnValue = nativeTheme.shouldUseDarkColors;
+});
+nativeTheme.on('updated', () => {
+    for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send('nsa:darkMode-changed', nativeTheme.shouldUseDarkColors);
+    }
+});
 
 ipcMain.handle('nsa:close', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);

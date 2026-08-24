@@ -43,12 +43,32 @@ class SimpleMenu extends ExtendableSprite {
         this.scrollSpeed = 20;
         this.scrollTrackedIndex = -1;
         this.scrollStartTime = 0;
+
+        // LSB scrollbar (distinct from the marquee text-scroll above): when
+        // on, rows beyond the visible window are reachable by mouse wheel
+        // and a thumb is drawn in the right-edge gap CLG's "s" size leaves
+        // for it (see nanoSDK_apply_scrollbar).
+        this.scrollbarEnabled = false;
+        this.rowOffset = 0;
     }
 
     setScroll(enabled, delayMs, speedPxPerSec) {
         this.scrollEnabled = enabled;
         if (delayMs !== undefined) this.scrollDelay = delayMs;
         if (speedPxPerSec !== undefined) this.scrollSpeed = speedPxPerSec;
+    }
+
+    visibleRowCount() {
+        return Math.max(0, ((this.height - _MENU_ROW_START_Y) / _MENU_ROW_HEIGHT) | 0);
+    }
+
+    maxRowOffset() {
+        return Math.max(0, this.items.length - this.visibleRowCount());
+    }
+
+    // Clamps and applies a scroll delta (in rows); used by app.js's wheel handler.
+    scrollBy(deltaRows) {
+        this.rowOffset = Math.max(0, Math.min(this.maxRowOffset(), this.rowOffset + deltaRows));
     }
 
     setColors(defaultForeground, defaultBackground, selectedForeground, selectedBackground) {
@@ -65,9 +85,9 @@ class SimpleMenu extends ExtendableSprite {
     rowAt(localX, localY) {
         if (localX < 0 || localX >= this.width || localY < 0) return -1;
         const row = Math.floor((localY - _MENU_ROW_START_Y) / _MENU_ROW_HEIGHT);
-        const visibleRows = Math.min(this.items.length, Math.max(0, ((this.height - _MENU_ROW_START_Y) / _MENU_ROW_HEIGHT) | 0));
+        const visibleRows = Math.min(this.items.length - this.rowOffset, this.visibleRowCount());
         if (row < 0 || row >= visibleRows) return -1;
-        return row;
+        return row + this.rowOffset;
     }
 
     draw(drawLeft, drawTop) {
@@ -76,14 +96,13 @@ class SimpleMenu extends ExtendableSprite {
             this.scrollStartTime = control.millis();
         }
 
-        const visibleRows = Math.min(
-            this.items.length,
-            Math.max(0, ((this.height - _MENU_ROW_START_Y) / _MENU_ROW_HEIGHT) | 0)
-        );
+        this.rowOffset = Math.max(0, Math.min(this.maxRowOffset(), this.rowOffset));
+        const visibleRows = Math.min(this.items.length - this.rowOffset, this.visibleRowCount());
 
-        for (let i = 0; i < visibleRows; i++) {
+        for (let row = 0; row < visibleRows; row++) {
+            const i = row + this.rowOffset;
             const item = this.items[i];
-            const rowTop = drawTop + _MENU_ROW_START_Y + i * _MENU_ROW_HEIGHT;
+            const rowTop = drawTop + _MENU_ROW_START_Y + row * _MENU_ROW_HEIGHT;
             const selected = i === this.selectedIndex || i === this.hoverIndex;
             const background = selected ? this.selectedBackground : this.defaultBackground;
             const foreground = selected ? this.selectedForeground : this.defaultForeground;
@@ -110,6 +129,28 @@ class SimpleMenu extends ExtendableSprite {
                 screen.print(text, drawLeft + 2, rowTop + 2, foreground);
             }
         }
+
+        this.drawScrollbar(drawLeft, drawTop);
+    }
+
+    // Drawn in the reserved gap to the sprite's right (CLG's "s" size is 9
+    // units narrower than "f" specifically to leave room for this) --
+    // matches real MicroOS's scrollBar/scrollBarRond sprites: a floating
+    // rounded-pill thumb in taskbar-accent pink (palette 9, #EF9EFF), no
+    // visible track behind it.
+    drawScrollbar(drawLeft, drawTop) {
+        if (!this.scrollbarEnabled) return;
+        const totalRows = this.items.length;
+        const visibleRows = this.visibleRowCount();
+        if (totalRows <= visibleRows) return;
+
+        const thumbW = 6;
+        const thumbX = drawLeft + this.width + 2;
+
+        const maxOffset = this.maxRowOffset();
+        const thumbH = Math.max(thumbW, (visibleRows / totalRows) * this.height);
+        const thumbY = drawTop + (maxOffset > 0 ? (this.rowOffset / maxOffset) * (this.height - thumbH) : 0);
+        screen.fillRoundedRect(thumbX, thumbY, thumbW, thumbH, thumbW / 2, 9);
     }
 
     scrollOffset(overflow) {

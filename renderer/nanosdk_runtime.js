@@ -25,9 +25,8 @@ function nanoSDK_apply_theme(mode) {
 }
 
 // MARK: ListGUI Scroll Bar
-// No-op: SimpleMenu (MicroUtilities) doesn't have a built-in scroll
-// indicator -- NanoCode draws its own scrollbar sprites separately.
 function nanoSDK_apply_scrollbar(enabled) {
+    ListMenuGUI.scrollbarEnabled = enabled;
 }
 
 // MARK: Variable Definitions
@@ -43,6 +42,11 @@ let loop_repeats_left = [];
 let loop_line = [];
 let loop_condition = [];
 let menu_array = [];
+// MicroOS's own default: 97 units tall, leaving the bottom 14 units for
+// its system taskbar to sit on top of. This desktop port doesn't render
+// that taskbar, so instead of stretching the list into that space,
+// engine.js crops the reserved band off the window entirely (see
+// VISIBLE_H) -- same treatment as the top 9-unit app bar strip.
 let menu_data = [80, 58, 160, 97];
 let nanoSDK_hover_highlight = true; // LGH's default is "auto" (see compiler.ts's LGH case) until an app says otherwise
 let nanoSDK_theme = 'm';
@@ -438,13 +442,15 @@ function nanoSDK_run_line() {
         // MARK: ListGUI
         case '3':
             switch (current_command) {
-                case '01':
+                case '01': {
+                    let destroy = false;
                     switch (command_data[1]) {
-                        case 'f': Reload_ListGUI(menu_array, 80, 58, 160, 97, true); break;
-                        case 's': Reload_ListGUI(menu_array, 76, 58, 151, 97, true); break;
+                        case 'f': menu_data = [80, 58, 160, 97]; destroy = true; break;
+                        case 's': menu_data = [76, 58, 151, 97]; destroy = true; break;
                     }
-                    Reload_ListGUI(menu_array, menu_data[0], menu_data[1], menu_data[2], menu_data[3], false);
+                    Reload_ListGUI(menu_array, menu_data[0], menu_data[1], menu_data[2], menu_data[3], destroy);
                     break;
+                }
                 case '02':
                     menu_data[0] = parseInt(command_data[1]);
                     menu_data[1] = parseInt(command_data[2]);

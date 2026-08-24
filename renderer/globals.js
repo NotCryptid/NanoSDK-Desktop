@@ -8,7 +8,14 @@ SpriteKind.Desktop_UI = SpriteKind.create();
 SpriteKind.App_UI = SpriteKind.create();
 
 let ListMenuGUI = microUtilities.createMenuFromArray([microUtilities.createMenuItem('')]);
-let darkMode = false;
+
+// Tracks the real OS color scheme so LGT's "m" (match OS theme) mode has
+// something to read -- this used to be hardcoded false and never updated.
+// Read from the main process's nativeTheme (see preload.js/main.js) rather
+// than this sandboxed renderer's own prefers-color-scheme media query,
+// which doesn't reliably track macOS's actual appearance.
+let darkMode = window.nsa.isDarkMode();
+window.nsa.onDarkModeChange((dark) => { darkMode = dark; });
 
 let NanoSDK_App_Running = false;
 let App_Open = 'null';
