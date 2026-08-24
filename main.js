@@ -121,7 +121,7 @@ function openNsaWindow(filePath) {
         useContentSize: true,
         title: appName,
         icon,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: nativeTheme.shouldUseDarkColors ? '#000000' : '#FFFFFF',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,

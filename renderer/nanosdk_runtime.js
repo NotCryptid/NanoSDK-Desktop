@@ -19,8 +19,14 @@ function Reload_ListGUI(data, x, y, width, height, destroy) {
 }
 
 // MARK: ListGUI Theme
+// mode is LGT's raw value: 'd' forces dark, 'l' forces light, 'm' matches
+// the real OS's current appearance (darkMode, from globals.js).
+function nanoSDK_is_dark(mode) {
+    return mode == 'd' || (mode == 'm' && darkMode);
+}
+
 function nanoSDK_apply_theme(mode) {
-    let dark = mode == 'd' || (mode == 'm' && darkMode);
+    let dark = nanoSDK_is_dark(mode);
     ListMenuGUI.setColors(dark ? 1 : 15, dark ? 15 : 1, dark ? 15 : 1, dark ? 1 : 15);
     // Keep the letterboxed page background (outside the 160x120 framebuffer)
     // in step with the resolved theme, instead of always being white -- it's

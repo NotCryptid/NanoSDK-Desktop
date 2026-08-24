@@ -15,11 +15,15 @@ let _booted = false;
 // window (title + icon + close) instead. No asset needed for Close_App's
 // icon since it's never visible.
 function createAppBar(fill, accent) {
-    fill = fill === undefined ? 1 : fill;
+    fill = fill === undefined ? 0 : fill;
     accent = accent === undefined ? 2 : accent;
     let fill2 = fill;
     if (fill === 0) {
-        fill2 = darkMode ? 15 : 1;
+        // "Auto" fill: follow the app's resolved LGT theme (nanoSDK_theme,
+        // which may force dark/light independent of the OS), not just the
+        // raw OS darkMode -- otherwise the app-bar background never
+        // repaints when an app sets LGT d/m and stays stuck white.
+        fill2 = nanoSDK_is_dark(nanoSDK_theme) ? 15 : 1;
     }
     if (accent === 2) {
         accent = theme[2];
@@ -252,10 +256,15 @@ const _rawApplyTheme = nanoSDK_apply_theme;
 nanoSDK_apply_theme = function (mode) {
     _rawApplyTheme(mode);
     if (ListMenuGUI) {
-        const dark = mode == 'd' || (mode == 'm' && darkMode);
+        const dark = nanoSDK_is_dark(mode);
         ListMenuGUI.selectedBackground = dark ? 1 : 3; // white in dark mode, #7A00B3 in light mode
         ListMenuGUI.selectedForeground = dark ? 15 : 1; // black in dark mode, white in light mode
     }
+    // createAppBar() only ever runs once, at app open (see Open_NanoSDK_App),
+    // so without this its background stays whatever it was drawn as at boot
+    // even after an in-script LGT command changes the theme. Redraw it with
+    // its default "auto" fill so it repaints to match.
+    if (NanoSDK_App_Running) createAppBar();
 };
 
 // MARK: Boot
