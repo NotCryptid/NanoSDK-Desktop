@@ -36,10 +36,11 @@
     ],
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        { "target": "dmg", "arch": ["arm64"] }
       ],
       "icon": "build/icon.icns",
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "minimumSystemVersion": "27.0.0"
     },
     "win": {
       "target": [
