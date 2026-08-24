@@ -22,6 +22,10 @@ function Reload_ListGUI(data, x, y, width, height, destroy) {
 function nanoSDK_apply_theme(mode) {
     let dark = mode == 'd' || (mode == 'm' && darkMode);
     ListMenuGUI.setColors(dark ? 1 : 15, dark ? 15 : 1, dark ? 15 : 1, dark ? 1 : 15);
+    // Keep the letterboxed page background (outside the 160x120 framebuffer)
+    // in step with the resolved theme, instead of always being white -- it's
+    // otherwise visibly mismatched against a dark-themed ListGUI.
+    document.body.classList.toggle('light-mode', !dark);
 }
 
 // MARK: ListGUI Scroll Bar

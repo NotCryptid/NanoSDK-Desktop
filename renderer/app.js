@@ -242,16 +242,19 @@ nanoSDK_check_when = function (idx) {
 // nanosdk_runtime.js's own nanoSDK_apply_theme only ever picks between
 // black/white (see its dark ? ... : ... pairs), but MicroOS's actual UI
 // (see the Settings screenshot) highlights the selected row with a solid
-// purple fill and white text -- the same selectedBackground/Foreground
-// app_backend.ts's own reloadListGUI uses for its light-mode lists.
-// Applying that here, right after nanoSDK_apply_theme runs, matches the
-// real OS's look without having to touch nanosdk_runtime.js's ported logic.
+// purple fill and white text in light mode -- the same selectedBackground/
+// Foreground app_backend.ts's own reloadListGUI uses for its light-mode
+// lists. In dark mode the real OS just inverts (white fill, black text),
+// same as its unselected-row colors. Applying that here, right after
+// nanoSDK_apply_theme runs, matches the real OS's look without having to
+// touch nanosdk_runtime.js's ported logic.
 const _rawApplyTheme = nanoSDK_apply_theme;
 nanoSDK_apply_theme = function (mode) {
     _rawApplyTheme(mode);
     if (ListMenuGUI) {
-        ListMenuGUI.selectedBackground = 3; // #7A00B3
-        ListMenuGUI.selectedForeground = 1; // white
+        const dark = mode == 'd' || (mode == 'm' && darkMode);
+        ListMenuGUI.selectedBackground = dark ? 1 : 3; // white in dark mode, #7A00B3 in light mode
+        ListMenuGUI.selectedForeground = dark ? 15 : 1; // black in dark mode, white in light mode
     }
 };
 
