@@ -32,6 +32,8 @@ function createAppBar(fill, accent) {
     bg.fill(fill2);
     bg.fillRect(0, 0, 160, 9, accent);
     scene.setBackgroundImage(bg);
+    // Letterbox background follows the app's resolved fill, never a fixed white/black.
+    document.body.classList.toggle('light-mode', fill2 === 1);
 }
 
 // MARK: Close / exit handling
@@ -219,7 +221,8 @@ screenCanvas.addEventListener('click', (evt) => {
     const pt = canvasToLogical(evt);
     const row = menuRowAt(pt);
     if (row < 0 || !ListMenuGUI) return;
-    ListMenuGUI.selectedIndex = row;
+    nanoSDK_clicked_row = row; // consumed (and cleared) by WHN sel -- edge-triggered
+    ListMenuGUI.selectedIndex = row; // brief visual feedback only
     clearTimeout(_selectClearTimer);
     _selectClearTimer = setTimeout(() => {
         if (ListMenuGUI && !isDestroyed(ListMenuGUI) && ListMenuGUI.selectedIndex === row) {
@@ -227,21 +230,6 @@ screenCanvas.addEventListener('click', (evt) => {
         }
     }, 120);
 });
-
-// Edge-trigger WHN sel checks so a click's momentary selection pulse fires
-// its body exactly once, instead of once per rendered frame it stays set.
-const _rawCheckWhen = nanoSDK_check_when;
-let _selEdgeSeen = {};
-nanoSDK_check_when = function (idx) {
-    const cond = when_cond_data[idx];
-    if (cond && cond[0] === 'sel') {
-        const raw = _rawCheckWhen(idx);
-        const prev = !!_selEdgeSeen[idx];
-        _selEdgeSeen[idx] = raw;
-        return raw && !prev;
-    }
-    return _rawCheckWhen(idx);
-};
 
 // nanosdk_runtime.js's own nanoSDK_apply_theme only ever picks between
 // black/white (see its dark ? ... : ... pairs), but MicroOS's actual UI

@@ -131,7 +131,10 @@ const VISIBLE_Y_OFFSET = 9;
 // 120 - 9 - 97 = 14). This runtime has no taskbar to draw there either, so
 // that band is cropped off the bottom of the window the same way the app
 // bar strip is cropped off the top, instead of showing as dead space.
-const TASKBAR_H = 14;
+// MicroOS's taskbar sprite is 12px tall centred at y=111, so it starts at
+// row 105. Cropping 15 (not 14) removes that top edge row as well, leaving a
+// 160x96 app area.
+const TASKBAR_H = 15;
 const VISIBLE_H = LOGICAL_H - VISIBLE_Y_OFFSET - TASKBAR_H;
 
 const screenCanvas = document.getElementById('screen');

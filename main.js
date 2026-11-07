@@ -106,22 +106,23 @@ function openNsaWindow(filePath) {
         app.dock.setIcon(icon);
     }
 
-    // 160x97: MicroOS's own fullscreen ListGUI preset (see e.g. Web Chat's
-    // reloadListGUI(80, 58, 160, 97, ...) in app_backend.ts) -- also
-    // renderer/engine.js's LOGICAL_W x VISIBLE_H, the exact content area
-    // this runtime actually draws into. The window is sized to that ratio
+    // 160x120 (4:3): MicroOS's screen, renderer/engine.js's LOGICAL_W x LOGICAL_H. The window is sized to that ratio
     // and locked to it so the canvas never gets stretched off-ratio by an
     // arbitrarily-shaped window (see style.css's matching aspect-ratio).
+    // The window shows only the 160x96 app area: the 9px app bar on top and
+    // the 15px taskbar band (incl. its top edge row) on the bottom are cropped.
     const CONTENT_SCALE = 6;
+    const APP_W = 160, APP_H = 96;
+    const APP_RATIO = APP_W / APP_H;
     const win = new BrowserWindow({
-        width: 160 * CONTENT_SCALE,
-        height: 97 * CONTENT_SCALE,
-        minWidth: 160 * 3,
-        minHeight: 97 * 3,
+        width: APP_W * CONTENT_SCALE,
+        height: APP_H * CONTENT_SCALE,
+        minWidth: APP_W * 3,
+        minHeight: APP_H * 3,
         useContentSize: true,
         title: appName,
         icon,
-        backgroundColor: nativeTheme.shouldUseDarkColors ? '#000000' : '#FFFFFF',
+        backgroundColor: '#000000',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -129,9 +130,21 @@ function openNsaWindow(filePath) {
             sandbox: true
         }
     });
-    win.setAspectRatio(160 / 97);
-
     win.setMenuBarVisibility(false);
+    // Keep the CONTENT area at the app ratio while resizing. The OS aspect
+    // lock counts the title bar and borders, which left bars, so enforce it
+    // on content size ourselves.
+    win.on('will-resize', (e, newBounds, details) => {
+        const [ow, oh] = win.getSize();
+        const [cw, ch] = win.getContentSize();
+        let w = newBounds.width - (ow - cw);
+        let h = newBounds.height - (oh - ch);
+        const edge = (details && details.edge) || '';
+        if (edge === 'top' || edge === 'bottom') { w = Math.round(h * APP_RATIO); }
+        else { h = Math.round(w / APP_RATIO); }
+        e.preventDefault();
+        win.setContentSize(w, h);
+    });
     // index.html has a static <title>; don't let it clobber the app name
     // we just set above.
     win.on('page-title-updated', (e) => e.preventDefault());

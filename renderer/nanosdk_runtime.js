@@ -6,11 +6,14 @@
 // close_apps/createAppBar/error/game helpers defined in app.js.
 
 // MARK: ListGUI Reload Function
-function Reload_ListGUI(data, x, y, width, height, destroy) {
-    if (destroy) {
+function Reload_ListGUI(data, x, y, width, height, destroy, preserveScroll) {
+    let prevOffset = 0;
+    if (destroy && ListMenuGUI) {
+        prevOffset = ListMenuGUI.rowOffset || 0;
         ListMenuGUI.destroy();
     }
     ListMenuGUI = microUtilities.createMenuFromArray(data);
+    if (preserveScroll) { ListMenuGUI.rowOffset = prevOffset; }
     ListMenuGUI.setDimensions(width, height);
     ListMenuGUI.setPosition(x, y);
     ListMenuGUI.z = -30;
@@ -59,6 +62,7 @@ let menu_array = [];
 // VISIBLE_H) -- same treatment as the top 9-unit app bar strip.
 let menu_data = [80, 58, 160, 97];
 let nanoSDK_hover_highlight = true; // LGH's default is "auto" (see compiler.ts's LGH case) until an app says otherwise
+let nanoSDK_clicked_row = -1; // row clicked since the last WHN sel check (-1 = none); set by app.js's click handler
 let nanoSDK_theme = 'm';
 let nanoSDK_scrollbar = false;
 
@@ -116,6 +120,7 @@ function Open_NanoSDK_App(app_binary) {
     menu_array = [];
     menu_data = [80, 58, 160, 97];
     nanoSDK_hover_highlight = true; // LGH's default is "auto"
+    nanoSDK_clicked_row = -1;
     nanoSDK_theme = 'm';
     nanoSDK_scrollbar = false;
     when_cond_data = [];
@@ -191,8 +196,13 @@ function nanoSDK_check_when(idx) {
 
         // MARK: When ListGUI Select
         case 'sel': {
+            // Edge-triggered: fires once per click on the row, not while hovering
             let targetIdx = parseInt(cond[1]) - 1;
-            return ListMenuGUI.selectedIndex == targetIdx;
+            if (nanoSDK_clicked_row == targetIdx) {
+                nanoSDK_clicked_row = -1;
+                return true;
+            }
+            return false;
         }
     }
 
@@ -482,7 +492,7 @@ function nanoSDK_run_line() {
                     let lgsIndex = parseInt(nanoSDK_resolve_vars(command_data[1]));
                     if (lgsIndex >= 0 && lgsIndex < menu_array.length) {
                         menu_array[lgsIndex] = microUtilities.createMenuItem(nanoSDK_resolve_vars(command_data[2]));
-                        Reload_ListGUI(menu_array, menu_data[0], menu_data[1], menu_data[2], menu_data[3], true);
+                        Reload_ListGUI(menu_array, menu_data[0], menu_data[1], menu_data[2], menu_data[3], true, true);
                     }
                     break;
                 }
@@ -495,7 +505,7 @@ function nanoSDK_run_line() {
                 }
                 case '07':
                     menu_array.splice(parseInt(command_data[1]), 1);
-                    Reload_ListGUI(menu_array, menu_data[0], menu_data[1], menu_data[2], menu_data[3], true);
+                    Reload_ListGUI(menu_array, menu_data[0], menu_data[1], menu_data[2], menu_data[3], true, true);
                     break;
                 case '08':
                     menu_array = [];
