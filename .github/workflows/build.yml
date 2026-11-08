@@ -30,8 +30,7 @@ jobs:
         with:
           name: windows-installers
           path: |
-            dist/NanoSDK-Runtime-Setup-*-x64.exe
-            dist/NanoSDK-Runtime-Setup-*-arm64.exe
+            dist/*.exe
           if-no-files-found: error
 
   macos:
