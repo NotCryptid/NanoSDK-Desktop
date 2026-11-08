@@ -1,0 +1,54 @@
+name: Build installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Which installers to build"
+        type: choice
+        default: all
+        options:
+          - all
+          - windows
+          - macos
+
+jobs:
+  windows:
+    if: inputs.platforms == 'all' || inputs.platforms == 'windows'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            dist/NanoSDK-Runtime-Setup-*-x64.exe
+            dist/NanoSDK-Runtime-Setup-*-arm64.exe
+          if-no-files-found: error
+
+  macos:
+    if: inputs.platforms == 'all' || inputs.platforms == 'macos'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/*.dmg
+          if-no-files-found: error

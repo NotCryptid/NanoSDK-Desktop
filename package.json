@@ -1,7 +1,7 @@
 {
   "name": "nanosdk-runtime",
   "productName": "NanoSDK Runtime",
-  "version": "2026.3.2",
+  "version": "2026.3.3",
   "description": "Standalone desktop runtime for NanoSDK .nsa apps",
   "main": "main.js",
   "author": "Cryptid",
@@ -36,7 +36,12 @@
     ],
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
       "icon": "build/icon.icns",
       "category": "public.app-category.developer-tools",
@@ -44,7 +49,13 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64", "arm64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "build/icon.ico"
     },
