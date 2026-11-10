@@ -1,4 +1,4 @@
-# NanoSDK Desktop
+# NanoSDK Runtime
 A port of the NanoSDK runtime to MacOS and Windows with full NSA file compatibility.
 # Requirements
 - Windows 11 23H2 or Newer
